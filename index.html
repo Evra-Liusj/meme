@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>梗梗小站 · 聊天梗分享广场</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --lavender: #EDE6EE;
+    --white:    #FEFEFE;
+    --blue:     #DEEBF4;
+    --slate:    #A5ACBF;
+    --ink:      #5B6273;
+    --ink-deep: #464C5C;
+    --pink:     #D9C6D6;
+    --shadow:   rgba(165, 172, 191, .45);
+    --pixel-font: 'ZCOOL QingKe HuangYou', 'Microsoft YaHei', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    color: var(--ink);
+    background-color: var(--white);
+    background-image:
+      linear-gradient(45deg, rgba(237,230,238,.55) 25%, transparent 25%, transparent 75%, rgba(237,230,238,.55) 75%),
+      linear-gradient(45deg, rgba(237,230,238,.55) 25%, transparent 25%, transparent 75%, rgba(237,230,238,.55) 75%);
+    background-size: 28px 28px;
+    background-position: 0 0, 14px 14px;
+    min-height: 100vh;
+  }
+
+  /* ===== 顶部横幅 ===== */
+  .banner {
+    background: linear-gradient(180deg, var(--lavender) 0%, var(--lavender) 70%, transparent 100%);
+    padding: 42px 20px 10px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .banner::before, .banner::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: var(--slate);
+    opacity: .35;
+    animation: floaty 4s ease-in-out infinite;
+  }
+  .banner::before { left: 8%; top: 30%; }
+  .banner::after  { right: 10%; top: 55%; animation-delay: 1.5s; }
+  @keyframes floaty {
+    0%,100% { transform: translateY(0) rotate(0deg); }
+    50%     { transform: translateY(-12px) rotate(45deg); }
+  }
+  .site-title {
+    font-family: var(--pixel-font);
+    font-size: clamp(32px, 6vw, 52px);
+    letter-spacing: 6px;
+    color: var(--ink-deep);
+  }
+  .site-title .caret {
+    display: inline-block;
+    width: .5em; height: .9em;
+    background: var(--slate);
+    margin-left: 8px;
+    vertical-align: -6px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .site-sub {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--slate);
+    letter-spacing: 3px;
+  }
+
+  /* ===== 主体容器 ===== */
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px 90px; }
+
+  /* ===== 标签页（广场 / 我的）===== */
+  .tabs {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 26px 0 20px;
+  }
+  .tab-btn {
+    font-family: var(--pixel-font);
+    font-size: 20px;
+    letter-spacing: 3px;
+    padding: 10px 30px;
+    border: 2px solid var(--slate);
+    background: var(--white);
+    color: var(--slate);
+    cursor: pointer;
+    box-shadow: 4px 4px 0 var(--shadow);
+    transition: all .15s ease;
+    user-select: none;
+  }
+  .tab-btn:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--shadow); }
+  .tab-btn.active {
+    background: var(--slate);
+    color: var(--white);
+    transform: translate(2px,2px);
+    box-shadow: 1px 1px 0 var(--shadow);
+  }
+
+  /* ===== 工具栏：搜索 / 筛选 / 排序 ===== */
+  .toolbar {
+    background: var(--white);
+    border: 2px solid var(--slate);
+    box-shadow: 6px 6px 0 var(--shadow);
+    padding: 14px;
+    margin-bottom: 20px;
+  }
+  .toolbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid var(--slate);
+    background: var(--blue);
+    padding: 8px 12px;
+  }
+  .search-box svg { flex-shrink: 0; }
+  .search-box input {
+    border: none; outline: none; background: transparent;
+    width: 100%; font-size: 14px; color: var(--ink-deep);
+  }
+  .search-box input::placeholder { color: var(--slate); }
+  .sort-group { display: flex; border: 2px solid var(--slate); overflow: hidden; }
+  .sort-btn {
+    border: none; cursor: pointer; padding: 9px 16px;
+    background: var(--white); color: var(--slate);
+    font-size: 13px; font-family: inherit; letter-spacing: 1px;
+    border-right: 2px solid var(--slate);
+    transition: background .15s;
+  }
+  .sort-btn:last-child { border-right: none; }
+  .sort-btn.active { background: var(--slate); color: var(--white); }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    border: 2px solid var(--slate);
+    background: var(--white);
+    color: var(--slate);
+    padding: 5px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .12s ease;
+    user-select: none;
+  }
+  .chip:hover { background: var(--blue); }
+  .chip.active {
+    background: var(--lavender);
+    color: var(--ink-deep);
+    border-color: var(--ink-deep);
+    transform: translate(1px,1px);
+    box-shadow: inset 1px 1px 0 rgba(0,0,0,.08);
+  }
+  /* 每个标签专属配色点 */
+  .chip.active::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: var(--tag-color, var(--slate)); }
+
+  /* ===== 梗卡片 ===== */
+  .grid { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--white);
+    border: 2px solid var(--slate);
+    box-shadow: 6px 6px 0 var(--shadow);
+    padding: 16px 18px;
+    animation: pop-in .25s ease both;
+    position: relative;
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(10px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .tag {
+    font-size: 12px;
+    padding: 3px 12px;
+    border: 2px solid var(--tag-color, var(--slate));
+    color: var(--ink-deep);
+    background: var(--tag-bg, var(--lavender));
+    letter-spacing: 1px;
+  }
+  .tag.r18 { border-style: dashed; }
+  .card-time { margin-left: auto; font-size: 12px; color: var(--slate); }
+  .card-content {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--ink-deep);
+    word-break: break-word;
+    white-space: pre-wrap;
+    background: var(--blue);
+    border: 2px dashed var(--slate);
+    padding: 12px 14px;
+  }
+  .card-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .icon-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 2px solid var(--slate);
+    background: var(--white);
+    color: var(--ink);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all .12s ease;
+    user-select: none;
+  }
+  .icon-btn:hover { background: var(--blue); transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--shadow); }
+  .icon-btn:active { transform: translate(1px,1px); box-shadow: none; }
+  .icon-btn.liked {
+    background: var(--pink);
+    border-color: var(--ink-deep);
+    color: var(--ink-deep);
+  }
+  .icon-btn.liked svg { animation: heart-beat .35s ease; }
+  @keyframes heart-beat {
+    0% { transform: scale(1); } 40% { transform: scale(1.5); } 100% { transform: scale(1); }
+  }
+  .card-delete { margin-left: auto; }
+
+  /* ===== 空状态 / 加载 ===== */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--slate);
+  }
+  .empty .pixel-box {
+    width: 48px; height: 48px;
+    margin: 0 auto 16px;
+    border: 3px solid var(--slate);
+    background:
+      conic-gradient(var(--slate) 25%, transparent 0 50%, var(--slate) 0 75%, transparent 0);
+    animation: spin 2.5s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty p { font-size: 14px; letter-spacing: 2px; line-height: 2; }
+
+  /* ===== 投稿按钮 ===== */
+  .fab {
+    position: fixed;
+    right: 24px; bottom: 28px;
+    z-index: 50;
+    font-family: var(--pixel-font);
+    font-size: 18px;
+    letter-spacing: 2px;
+    padding: 14px 26px;
+    border: 2px solid var(--ink-deep);
+    background: var(--lavender);
+    color: var(--ink-deep);
+    cursor: pointer;
+    box-shadow: 5px 5px 0 var(--ink-deep);
+    transition: all .15s ease;
+  }
+  .fab:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--ink-deep); background: var(--pink); }
+  .fab:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 var(--ink-deep); }
+
+  /* ===== 弹窗 ===== */
+  .modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(91,98,115,.45);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 480px;
+    background: var(--white);
+    border: 2px solid var(--ink-deep);
+    box-shadow: 8px 8px 0 var(--shadow);
+    padding: 22px;
+    animation: pop-in .2s ease both;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-family: var(--pixel-font);
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: var(--ink-deep);
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-close {
+    border: none; background: none; cursor: pointer;
+    font-size: 20px; color: var(--slate); font-family: inherit;
+  }
+  .modal label { display: block; font-size: 13px; color: var(--ink); margin: 14px 0 8px; letter-spacing: 1px; }
+  .modal textarea {
+    width: 100%; min-height: 120px;
+    border: 2px solid var(--slate);
+    background: var(--blue);
+    padding: 12px;
+    font-size: 14px; font-family: inherit;
+    color: var(--ink-deep);
+    resize: vertical;
+    outline: none;
+  }
+  .modal textarea:focus { border-color: var(--ink-deep); }
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .type-opt {
+    border: 2px solid var(--slate);
+    background: var(--white);
+    padding: 8px 0;
+    text-align: center;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--slate);
+    transition: all .12s;
+    user-select: none;
+  }
+  .type-opt:hover { background: var(--blue); }
+  .type-opt.active {
+    background: var(--lavender);
+    border-color: var(--ink-deep);
+    color: var(--ink-deep);
+    font-weight: bold;
+  }
+  .submit-btn {
+    width: 100%;
+    margin-top: 18px;
+    font-family: var(--pixel-font);
+    font-size: 18px;
+    letter-spacing: 4px;
+    padding: 12px;
+    border: 2px solid var(--ink-deep);
+    background: var(--slate);
+    color: var(--white);
+    cursor: pointer;
+    box-shadow: 4px 4px 0 var(--shadow);
+    transition: all .15s;
+  }
+  .submit-btn:hover { background: var(--ink-deep); }
+  .submit-btn:active { transform: translate(2px,2px); box-shadow: none; }
+  .submit-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .form-hint { font-size: 12px; color: var(--slate); margin-top: 10px; text-align: center; }
+
+  /* ===== 提示气泡（toast）===== */
+  .toast {
+    position: fixed;
+    left: 50%; bottom: 100px;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink-deep);
+    color: var(--white);
+    padding: 10px 24px;
+    font-size: 14px;
+    letter-spacing: 1px;
+    border: 2px solid var(--white);
+    box-shadow: 4px 4px 0 rgba(0,0,0,.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: all .25s ease;
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .config-tip {
+    background: var(--blue);
+    border: 2px dashed var(--slate);
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--ink-deep);
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 520px) {
+    .type-grid { grid-template-columns: repeat(2, 1fr); }
+    .fab { right: 14px; bottom: 18px; padding: 12px 20px; }
+    .card-delete { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="banner">
+  <h1 class="site-title">梗梗小站<span class="caret"></span></h1>
+  <p class="site-sub">分享那些让人心动的聊天梗</p>
+</header>
+
+<main class="wrap">
+  <div class="tabs">
+    <button class="tab-btn active" id="tabSquare" data-tab="square">广场</button>
+    <button class="tab-btn" id="tabMine" data-tab="mine">我的</button>
+  </div>
+
+  <div class="config-tip" id="configTip" style="display:none">
+    尚未连接数据库（Demo 演示模式，数据仅保存在本地）。<br />
+    请按部署教程，把本文件顶部的 <b>SUPABASE_URL</b> 和 <b>SUPABASE_ANON_KEY</b> 替换成你自己的 Supabase 项目信息即可。
+  </div>
+
+  <div class="toolbar">
+    <div class="toolbar-row">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A5ACBF" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+        <input id="searchInput" type="text" placeholder="搜索聊天梗…" />
+      </div>
+      <div class="sort-group">
+        <button class="sort-btn active" data-sort="new">最新</button>
+        <button class="sort-btn" data-sort="hot">最热</button>
+      </div>
+    </div>
+    <div class="chip-row" id="chipRow"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</main>
+
+<button class="fab" id="fabBtn">投稿梗</button>
+
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-title">
+      投稿聊天梗
+      <button class="modal-close" id="modalClose" aria-label="关闭">X</button>
+    </div>
+    <label>梗的内容</label>
+    <textarea id="memeText" maxlength="500" placeholder="粘贴或输入你的聊天梗…（500 字以内）"></textarea>
+    <label>选择类型（必选）</label>
+    <div class="type-grid" id="typeGrid"></div>
+    <button class="submit-btn" id="submitBtn">发 送</button>
+    <p class="form-hint">发送后会立刻出现在广场上</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+ *  第 1 步：把下面两行换成你自己的 Supabase 项目信息
+ *  教程见：部署教程.md
+ * ========================================================= */
+const SUPABASE_URL    = 'https://wledeyjvgszazcpyuzoe.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsZWRleWp2Z3N6YXpjcHl1em9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4ODY0NjQsImV4cCI6MjEwOTQ2MjQ2NH0.z5wwd1Fj-cwZXU-wV1ywLWb_jYH9IubKmsjtafaU4nY';
+
+const CONFIGURED = !SUPABASE_URL.includes('请替换') && !SUPABASE_ANON_KEY.includes('请替换');
+let db = null;
+if (CONFIGURED && window.supabase) {
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+/* ---------- 基础数据 ---------- */
+const CATEGORIES = ['可爱', '搞笑', '酸涩', '温馨', '18＋', '其他'];
+const TAG_COLORS = {
+  '可爱': { c: '#C99BB8', bg: '#F6EDF3' },
+  '搞笑': { c: '#8FA6C2', bg: '#E7F0F8' },
+  '酸涩': { c: '#9C87B5', bg: '#F0EAF6' },
+  '温馨': { c: '#7FA8B8', bg: '#E6F2F6' },
+  '18＋': { c: '#B07A7A', bg: '#F7EAEA' },
+  '其他': { c: '#A5ACBF', bg: '#EFF1F5' },
+};
+
+/* 设备身份：用来识别“我的”，无需登录 */
+let deviceId = localStorage.getItem('meme_device_id');
+if (!deviceId) {
+  deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem('meme_device_id', deviceId);
+}
+
+/* 本机已点赞记录，防止重复点赞 */
+let likedSet = new Set(JSON.parse(localStorage.getItem('meme_liked_ids') || '[]'));
+const saveLiked = () => localStorage.setItem('meme_liked_ids', JSON.stringify([...likedSet]));
+
+/* ---------- 页面状态 ---------- */
+const state = { tab: 'square', category: '全部', sort: 'new', search: '', memes: [], loading: false };
+
+/* ---------- DOM ---------- */
+const $ = (id) => document.getElementById(id);
+const grid = $('grid'), chipRow = $('chipRow'), typeGrid = $('typeGrid');
+
+/* ---------- 工具函数 ---------- */
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+  if (diff < 86400 * 30) return Math.floor(diff / 86400) + ' 天前';
+  return new Date(iso).toLocaleDateString('zh-CN');
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+    return ok;
+  }
+}
+
+/* ---------- 渲染：筛选 chips / 类型选项 ---------- */
+function renderChips() {
+  const all = ['全部', ...CATEGORIES];
+  chipRow.innerHTML = all.map((c) => {
+    const col = TAG_COLORS[c] || { c: 'var(--ink-deep)' };
+    return `<button class="chip ${state.category === c ? 'active' : ''}"
+      data-cat="${c}" style="--tag-color:${col.c}">${c}</button>`;
+  }).join('');
+}
+chipRow.addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  state.category = btn.dataset.cat;
+  renderChips();
+  loadMemes();
+});
+
+function renderTypeOptions() {
+  typeGrid.innerHTML = CATEGORIES.map((c) => {
+    const col = TAG_COLORS[c];
+    return `<button class="type-opt" data-type="${c}" style="--tag-color:${col.c}">${c}</button>`;
+  }).join('');
+}
+let selectedType = '';
+typeGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.type-opt');
+  if (!btn) return;
+  selectedType = btn.dataset.type;
+  typeGrid.querySelectorAll('.type-opt').forEach((el) =>
+    el.classList.toggle('active', el === btn));
+});
+
+/* ---------- 渲染：卡片列表 ---------- */
+function renderMemes() {
+  if (state.loading) {
+    grid.innerHTML = `<div class="empty"><div class="pixel-box"></div><p>正在加载梗…</p></div>`;
+    return;
+  }
+  if (!state.memes.length) {
+    const msg = state.tab === 'mine'
+      ? '这里还空空的<br/>点右下角「投稿梗」发出你的第一条聊天梗吧'
+      : '还没有符合条件的聊天梗<br/>换个筛选条件，或者投稿第一个梗吧';
+    grid.innerHTML = `<div class="empty"><div class="pixel-box"></div><p>${msg}</p></div>`;
+    return;
+  }
+  grid.innerHTML = state.memes.map((m) => {
+    const col = TAG_COLORS[m.category] || TAG_COLORS['其他'];
+    const liked = likedSet.has(m.id);
+    const mine = m.device_id === deviceId;
+    return `
+      <article class="card" data-id="${m.id}">
+        <div class="card-head">
+          <span class="tag ${m.category === '18＋' ? 'r18' : ''}"
+                style="--tag-color:${col.c};--tag-bg:${col.bg}">${escapeHTML(m.category)}</span>
+          <span class="card-time">${timeAgo(m.created_at)}</span>
+        </div>
+        <div class="card-content">${escapeHTML(m.content)}</div>
+        <div class="card-foot">
+          <button class="icon-btn ${liked ? 'liked' : ''}" data-act="like">
+            <svg width="14" height="14" viewBox="0 0 24 24"
+                 fill="${liked ? '#B07A7A' : 'none'}" stroke="currentColor" stroke-width="2">
+              <path d="M12 21s-7.5-4.9-9.8-9.2C.6 8.6 2.6 5 6.2 5c2.1 0 3.6 1.1 4.4 2.6L12 9l1.4-1.4C14.2 6.1 15.7 5 17.8 5c3.6 0 5.6 3.6 4 6.8C19.5 16.1 12 21 12 21z"/>
+            </svg>
+            <span>${m.likes}</span>
+          </button>
+          <button class="icon-btn" data-act="copy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="12" height="12" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+            </svg>
+            复制
+          </button>
+          ${state.tab === 'mine' && mine
+            ? `<button class="icon-btn card-delete" data-act="delete">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                   <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
+                 </svg>
+                 删除
+               </button>`
+            : ''}
+        </div>
+      </article>`;
+  }).join('');
+}
+
+grid.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.icon-btn');
+  if (!btn) return;
+  const card = btn.closest('.card');
+  const id = card.dataset.id;
+  const meme = state.memes.find((m) => m.id === id);
+  if (!meme) return;
+
+  if (btn.dataset.act === 'copy') {
+    const ok = await copyText(meme.content);
+    toast(ok ? '已复制到剪贴板' : '复制失败，请手动选择文字复制');
+  } else if (btn.dataset.act === 'like') {
+    await toggleLike(meme, btn);
+  } else if (btn.dataset.act === 'delete') {
+    await deleteMeme(meme);
+  }
+});
+
+/* ---------- 点赞 / 取消点赞 ---------- */
+async function toggleLike(meme, btn) {
+  const wasLiked = likedSet.has(meme.id);
+  const delta = wasLiked ? -1 : 1;
+
+  /* 先更新界面，再同步数据库 */
+  if (wasLiked) likedSet.delete(meme.id); else likedSet.add(meme.id);
+  meme.likes = Math.max(0, meme.likes + delta);
+  saveLiked();
+  renderMemes();
+
+  if (!CONFIGURED) { persistDemo(); return; }
+  const { error } = await db.rpc('like_meme', { meme_id: meme.id, delta });
+  if (error) {
+    /* 回滚 */
+    if (wasLiked) likedSet.add(meme.id); else likedSet.delete(meme.id);
+    meme.likes = Math.max(0, meme.likes - delta);
+    saveLiked();
+    renderMemes();
+    toast('点赞失败，请稍后再试');
+  }
+}
+
+/* ---------- 删除自己的梗 ---------- */
+async function deleteMeme(meme) {
+  if (!confirm('确定要删除这条梗吗？')) return;
+  if (!CONFIGURED) {
+    demoMemes = demoMemes.filter((m) => m.id !== meme.id);
+    persistDemo();
+    loadMemes();
+    toast('已删除');
+    return;
+  }
+  const { error } = await db.from('memes').delete().eq('id', meme.id).eq('device_id', deviceId);
+  if (error) { toast('删除失败：' + error.message); return; }
+  loadMemes();
+  toast('已删除');
+}
+
+/* ---------- 加载列表 ---------- */
+async function loadMemes() {
+  state.loading = true;
+  renderMemes();
+
+  if (!CONFIGURED) {
+    /* Demo 模式：从 localStorage 读取 */
+    await new Promise((r) => setTimeout(r, 300));
+    let list = demoMemes.slice();
+    if (state.tab === 'mine') list = list.filter((m) => m.device_id === deviceId);
+    if (state.category !== '全部') list = list.filter((m) => m.category === state.category);
+    if (state.search) list = list.filter((m) => m.content.includes(state.search));
+    list.sort((a, b) => state.sort === 'hot'
+      ? b.likes - a.likes
+      : new Date(b.created_at) - new Date(a.created_at));
+    state.memes = list;
+    state.loading = false;
+    renderMemes();
+    return;
+  }
+
+  let q = db.from('memes').select('*');
+  if (state.tab === 'mine') q = q.eq('device_id', deviceId);
+  if (state.category !== '全部') q = q.eq('category', state.category);
+  if (state.search) q = q.ilike('content', '%' + state.search.replace(/[%_]/g, '\\$&') + '%');
+  q = state.sort === 'hot' ? q.order('likes', { ascending: false }) : q.order('created_at', { ascending: false });
+  q = q.limit(100);
+
+  const { data, error } = await q;
+  state.loading = false;
+  if (error) {
+    state.memes = [];
+    grid.innerHTML = `<div class="empty"><p>加载失败：${escapeHTML(error.message)}</p></div>`;
+    return;
+  }
+  state.memes = data || [];
+  renderMemes();
+}
+
+/* ---------- 投稿 ---------- */
+const modalMask = $('modalMask');
+function openModal() {
+  modalMask.classList.add('show');
+  $('memeText').value = '';
+  selectedType = '';
+  typeGrid.querySelectorAll('.type-opt').forEach((el) => el.classList.remove('active'));
+  setTimeout(() => $('memeText').focus(), 100);
+}
+function closeModal() { modalMask.classList.remove('show'); }
+
+$('fabBtn').addEventListener('click', openModal);
+$('modalClose').addEventListener('click', closeModal);
+modalMask.addEventListener('click', (e) => { if (e.target === modalMask) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+$('submitBtn').addEventListener('click', async () => {
+  const content = $('memeText').value.trim();
+  if (!content) { toast('先写点什么吧'); return; }
+  if (!selectedType) { toast('请选择一个类型'); return; }
+
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '发送中…';
+
+  const newMeme = {
+    id: 'demo_' + Date.now(),
+    content,
+    category: selectedType,
+    likes: 0,
+    device_id: deviceId,
+    created_at: new Date().toISOString(),
+  };
+
+  if (!CONFIGURED) {
+    demoMemes.unshift(newMeme);
+    persistDemo();
+    closeModal();
+    state.tab = 'square';
+    updateTabs();
+    state.category = '全部';
+    state.search = '';
+    $('searchInput').value = '';
+    renderChips();
+    loadMemes();
+    toast('投稿成功，已出现在广场');
+    btn.disabled = false;
+    btn.textContent = '发 送';
+    return;
+  }
+
+  const { data, error } = await db
+    .from('memes')
+    .insert({ content, category: selectedType, device_id: deviceId })
+    .select()
+    .single();
+
+  btn.disabled = false;
+  btn.textContent = '发 送';
+
+  if (error) {
+    toast('投稿失败：' + error.message);
+    return;
+  }
+  closeModal();
+  state.tab = 'square';
+  updateTabs();
+  state.category = '全部';
+  state.search = '';
+  $('searchInput').value = '';
+  renderChips();
+  loadMemes();
+  toast('投稿成功，已出现在广场');
+});
+
+/* ---------- 标签页切换 ---------- */
+function updateTabs() {
+  document.querySelectorAll('.tab-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.tab === state.tab));
+}
+document.querySelectorAll('.tab-btn').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (state.tab === b.dataset.tab) return;
+    state.tab = b.dataset.tab;
+    updateTabs();
+    loadMemes();
+  }));
+
+/* ---------- 排序 / 搜索 ---------- */
+document.querySelectorAll('.sort-btn').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (state.sort === b.dataset.sort) return;
+    state.sort = b.dataset.sort;
+    document.querySelectorAll('.sort-btn').forEach((x) =>
+      x.classList.toggle('active', x === b));
+    loadMemes();
+  }));
+
+let searchTimer = null;
+$('searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.search = e.target.value.trim();
+    loadMemes();
+  }, 350);
+});
+
+/* ---------- Demo 演示数据 ---------- */
+let demoMemes = JSON.parse(localStorage.getItem('meme_demo_data') || 'null');
+function persistDemo() { localStorage.setItem('meme_demo_data', JSON.stringify(demoMemes)); }
+if (!demoMemes) {
+  const now = Date.now();
+  demoMemes = [
+    { id: 'd1', content: '“在吗”\n“怎么了”\n“我刚刚看到一只超可爱的猫，第一个想到要给你看”', category: '可爱', likes: 12, device_id: 'seed', created_at: new Date(now - 3600e3 * 2).toISOString() },
+    { id: 'd2', content: '“你干嘛哈哈哎呦”\n——所有话题终结者的自我修养', category: '搞笑', likes: 30, device_id: 'seed', created_at: new Date(now - 3600e3 * 5).toISOString() },
+    { id: 'd3', content: '“晚安”\n“做个好梦”\n“梦里也别忘了我”', category: '酸涩', likes: 21, device_id: 'seed', created_at: new Date(now - 86400e3).toISOString() },
+    { id: 'd4', content: '“到家了吗”\n“到了”\n“那我把灯关了，省电”\n“等等，我还没洗完澡呢”\n“那你洗完喊我”', category: '温馨', likes: 45, device_id: 'seed', created_at: new Date(now - 86400e3 * 2).toISOString() },
+  ];
+  persistDemo();
+}
+
+/* ---------- 启动 ---------- */
+if (!CONFIGURED) {
+  $('configTip').style.display = 'block';
+}
+renderChips();
+renderTypeOptions();
+loadMemes();
+</script>
+</body>
+</html>
