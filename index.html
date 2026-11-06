@@ -139,15 +139,15 @@
   }
   .search-box input::placeholder { color: var(--slate); }
   .sort-group { display: flex; border: 2px solid var(--slate); overflow: hidden; }
-  .sort-btn {
+  .sort-btn, .kind-btn {
     border: none; cursor: pointer; padding: 9px 16px;
     background: var(--white); color: var(--slate);
     font-size: 13px; font-family: inherit; letter-spacing: 1px;
     border-right: 2px solid var(--slate);
     transition: background .15s;
   }
-  .sort-btn:last-child { border-right: none; }
-  .sort-btn.active { background: var(--slate); color: var(--white); }
+  .sort-btn:last-child, .kind-btn:last-child { border-right: none; }
+  .sort-btn.active, .kind-btn.active { background: var(--slate); color: var(--white); }
 
   .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .chip {
@@ -170,6 +170,17 @@
   }
   /* 每个标签专属配色点 */
   .chip.active::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: var(--tag-color, var(--slate)); }
+
+  /* ===== 转载提示条 ===== */
+  .notice-bar {
+    background: var(--lavender);
+    border: 2px dashed var(--slate);
+    color: var(--ink-deep);
+    font-size: 13px;
+    line-height: 1.9;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
 
   /* ===== 梗卡片 ===== */
   .grid { display: flex; flex-direction: column; gap: 16px; }
@@ -406,17 +417,29 @@
 
   <div class="toolbar">
     <div class="toolbar-row">
+      <div class="sort-group" id="kindGroup">
+        <button class="kind-btn active" data-kind="梗">聊天梗</button>
+        <button class="kind-btn" data-kind="番外">番外</button>
+      </div>
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A5ACBF" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-        <input id="searchInput" type="text" placeholder="搜索聊天梗…" />
+        <input id="searchInput" type="text" placeholder="搜索…" />
       </div>
       <div class="sort-group">
         <button class="sort-btn active" data-sort="new">最新</button>
         <button class="sort-btn" data-sort="hot">最热</button>
       </div>
+      <button class="icon-btn" id="randomBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>
+        </svg>
+        随机抽
+      </button>
     </div>
     <div class="chip-row" id="chipRow"></div>
   </div>
+
+  <div class="notice-bar" id="noticeBar" style="display:none">请确保上传的番外为自己的原创或者作者老师已标注允许二传的番外。如果是转载，务必表明原作老师。</div>
 
   <div class="grid" id="grid"></div>
 </main>
@@ -431,10 +454,25 @@
     </div>
     <label>梗的内容</label>
     <textarea id="memeText" maxlength="500" placeholder="粘贴或输入你的聊天梗…（500 字以内）"></textarea>
-    <label>选择类型（必选）</label>
+    <label>投稿种类</label>
+    <div class="type-grid" id="kindGrid" style="grid-template-columns:repeat(2,1fr)"></div>
+    <label>选择类型（聊天梗选一个；番外可多选）</label>
     <div class="type-grid" id="typeGrid"></div>
     <button class="submit-btn" id="submitBtn">发 送</button>
     <p class="form-hint">发送后会立刻出现在广场上</p>
+  </div>
+</div>
+
+<div class="modal-mask" id="randMask">
+  <div class="modal">
+    <div class="modal-title">
+      随机抽一条<span id="randKindLabel" style="font-size:14px;color:var(--slate);letter-spacing:1px;font-family:inherit"></span>
+      <button class="modal-close" id="randClose" aria-label="关闭">X</button>
+    </div>
+    <label>按类型抽（可以不选，就随机全部类型）</label>
+    <div class="chip-row" id="randChips" style="margin-top:4px"></div>
+    <div id="randResult" style="margin-top:16px"></div>
+    <button class="submit-btn" id="randGoBtn">抽 一 条</button>
   </div>
 </div>
 
@@ -455,12 +493,19 @@ if (CONFIGURED && window.supabase) {
 }
 
 /* ---------- 基础数据 ---------- */
-const CATEGORIES = ['可爱', '搞笑', '酸涩', '温馨', '18＋', '其他'];
+const KIND_CATS = {
+  '梗':   ['可爱', '搞笑', '酸涩', '温馨', '18＋', '其他'],
+  '番外': ['可爱', '温馨', '酸涩', '雷霆', '幽默', '奇幻', '平行时空', '18＋', '其他'],
+};
 const TAG_COLORS = {
   '可爱': { c: '#C99BB8', bg: '#F6EDF3' },
   '搞笑': { c: '#8FA6C2', bg: '#E7F0F8' },
   '酸涩': { c: '#9C87B5', bg: '#F0EAF6' },
   '温馨': { c: '#7FA8B8', bg: '#E6F2F6' },
+  '雷霆': { c: '#8B93A8', bg: '#EDF0F4' },
+  '幽默': { c: '#B5A26C', bg: '#F7F3E6' },
+  '奇幻': { c: '#8F9FC9', bg: '#EDF1FA' },
+  '平行时空': { c: '#A58CC4', bg: '#F2ECF8' },
   '18＋': { c: '#B07A7A', bg: '#F7EAEA' },
   '其他': { c: '#A5ACBF', bg: '#EFF1F5' },
 };
@@ -477,7 +522,7 @@ let likedSet = new Set(JSON.parse(localStorage.getItem('meme_liked_ids') || '[]'
 const saveLiked = () => localStorage.setItem('meme_liked_ids', JSON.stringify([...likedSet]));
 
 /* ---------- 页面状态 ---------- */
-const state = { tab: 'square', category: '全部', sort: 'new', search: '', memes: [], loading: false };
+const state = { tab: 'square', kind: '梗', category: '全部', sort: 'new', search: '', memes: [], loading: false };
 
 /* ---------- DOM ---------- */
 const $ = (id) => document.getElementById(id);
@@ -524,7 +569,7 @@ async function copyText(text) {
 
 /* ---------- 渲染：筛选 chips / 类型选项 ---------- */
 function renderChips() {
-  const all = ['全部', ...CATEGORIES];
+  const all = ['全部', ...KIND_CATS[state.kind]];
   chipRow.innerHTML = all.map((c) => {
     const col = TAG_COLORS[c] || { c: 'var(--ink-deep)' };
     return `<button class="chip ${state.category === c ? 'active' : ''}"
@@ -540,18 +585,44 @@ chipRow.addEventListener('click', (e) => {
 });
 
 function renderTypeOptions() {
-  typeGrid.innerHTML = CATEGORIES.map((c) => {
+  typeGrid.innerHTML = KIND_CATS[selectedKind].map((c) => {
     const col = TAG_COLORS[c];
     return `<button class="type-opt" data-type="${c}" style="--tag-color:${col.c}">${c}</button>`;
   }).join('');
 }
-let selectedType = '';
+const kindGrid = $('kindGrid');
+let selectedKind = '梗';
+let selectedTypes = new Set();
+function syncTypeGrid() {
+  typeGrid.querySelectorAll('.type-opt').forEach((el) =>
+    el.classList.toggle('active', selectedTypes.has(el.dataset.type)));
+}
+function renderKindOptions() {
+  kindGrid.innerHTML = ['梗', '番外'].map((k) =>
+    `<button class="type-opt ${k === selectedKind ? 'active' : ''}" data-kind="${k}">${k === '梗' ? '聊天梗' : '番外'}</button>`).join('');
+}
+kindGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.type-opt');
+  if (!btn) return;
+  selectedKind = btn.dataset.kind;
+  kindGrid.querySelectorAll('.type-opt').forEach((el) => el.classList.toggle('active', el === btn));
+  renderTypeOptions();
+  selectedTypes = new Set();
+  syncTypeGrid();
+});
 typeGrid.addEventListener('click', (e) => {
   const btn = e.target.closest('.type-opt');
   if (!btn) return;
-  selectedType = btn.dataset.type;
-  typeGrid.querySelectorAll('.type-opt').forEach((el) =>
-    el.classList.toggle('active', el === btn));
+  const t = btn.dataset.type;
+  if (selectedKind === '梗') {
+    /* 聊天梗：单选 */
+    selectedTypes = new Set([t]);
+  } else {
+    /* 番外：可多选，再点一次取消 */
+    if (selectedTypes.has(t)) selectedTypes.delete(t);
+    else selectedTypes.add(t);
+  }
+  syncTypeGrid();
 });
 
 /* ---------- 渲染：卡片列表 ---------- */
@@ -568,14 +639,18 @@ function renderMemes() {
     return;
   }
   grid.innerHTML = state.memes.map((m) => {
-    const col = TAG_COLORS[m.category] || TAG_COLORS['其他'];
+    const cats = String(m.category || '其他').split(',');
+    const tags = cats.map((c) => {
+      const col = TAG_COLORS[c] || TAG_COLORS['其他'];
+      return `<span class="tag ${c === '18＋' ? 'r18' : ''}"
+        style="--tag-color:${col.c};--tag-bg:${col.bg}">${escapeHTML(c)}</span>`;
+    }).join('');
     const liked = likedSet.has(m.id);
     const mine = m.device_id === deviceId;
     return `
       <article class="card" data-id="${m.id}">
         <div class="card-head">
-          <span class="tag ${m.category === '18＋' ? 'r18' : ''}"
-                style="--tag-color:${col.c};--tag-bg:${col.bg}">${escapeHTML(m.category)}</span>
+          ${tags}
           <span class="card-time">${timeAgo(m.created_at)}</span>
         </div>
         <div class="card-content">${escapeHTML(m.content)}</div>
@@ -672,8 +747,9 @@ async function loadMemes() {
     /* Demo 模式：从 localStorage 读取 */
     await new Promise((r) => setTimeout(r, 300));
     let list = demoMemes.slice();
+    list = list.filter((m) => (m.kind || '梗') === state.kind);
     if (state.tab === 'mine') list = list.filter((m) => m.device_id === deviceId);
-    if (state.category !== '全部') list = list.filter((m) => m.category === state.category);
+    if (state.category !== '全部') list = list.filter((m) => String(m.category).split(',').includes(state.category));
     if (state.search) list = list.filter((m) => m.content.includes(state.search));
     list.sort((a, b) => state.sort === 'hot'
       ? b.likes - a.likes
@@ -684,9 +760,9 @@ async function loadMemes() {
     return;
   }
 
-  let q = db.from('memes').select('*');
+  let q = db.from('memes').select('*').eq('kind', state.kind);
   if (state.tab === 'mine') q = q.eq('device_id', deviceId);
-  if (state.category !== '全部') q = q.eq('category', state.category);
+  if (state.category !== '全部') q = q.ilike('category', '%' + state.category + '%');
   if (state.search) q = q.ilike('content', '%' + state.search.replace(/[%_]/g, '\\$&') + '%');
   q = state.sort === 'hot' ? q.order('likes', { ascending: false }) : q.order('created_at', { ascending: false });
   q = q.limit(100);
@@ -707,8 +783,10 @@ const modalMask = $('modalMask');
 function openModal() {
   modalMask.classList.add('show');
   $('memeText').value = '';
-  selectedType = '';
-  typeGrid.querySelectorAll('.type-opt').forEach((el) => el.classList.remove('active'));
+  selectedKind = state.kind;
+  renderKindOptions();
+  selectedTypes = new Set();
+  syncTypeGrid();
   setTimeout(() => $('memeText').focus(), 100);
 }
 function closeModal() { modalMask.classList.remove('show'); }
@@ -721,7 +799,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal
 $('submitBtn').addEventListener('click', async () => {
   const content = $('memeText').value.trim();
   if (!content) { toast('先写点什么吧'); return; }
-  if (!selectedType) { toast('请选择一个类型'); return; }
+  if (!selectedTypes.size) { toast('请至少选择一个类型'); return; }
 
   const btn = $('submitBtn');
   btn.disabled = true;
@@ -729,8 +807,9 @@ $('submitBtn').addEventListener('click', async () => {
 
   const newMeme = {
     id: 'demo_' + Date.now(),
+    kind: selectedKind,
     content,
-    category: selectedType,
+    category: [...selectedTypes].join(','),
     likes: 0,
     device_id: deviceId,
     created_at: new Date().toISOString(),
@@ -755,7 +834,7 @@ $('submitBtn').addEventListener('click', async () => {
 
   const { data, error } = await db
     .from('memes')
-    .insert({ content, category: selectedType, device_id: deviceId })
+    .insert({ kind: selectedKind, content, category: [...selectedTypes].join(','), device_id: deviceId })
     .select()
     .single();
 
@@ -790,6 +869,104 @@ document.querySelectorAll('.tab-btn').forEach((b) =>
     loadMemes();
   }));
 
+/* ---------- 种类切换（聊天梗 / 番外） ---------- */
+$('kindGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.kind-btn');
+  if (!btn || state.kind === btn.dataset.kind) return;
+  state.kind = btn.dataset.kind;
+  document.querySelectorAll('.kind-btn').forEach((x) =>
+    x.classList.toggle('active', x === btn));
+  state.category = '全部';
+  $('noticeBar').style.display = state.kind === '番外' ? 'block' : 'none';
+  renderChips();
+  loadMemes();
+});
+
+/* ---------- 随机抽一条 ---------- */
+const randMask = $('randMask');
+let randCat = '';
+
+function openRand() {
+  randCat = '';
+  renderRandChips();
+  $('randResult').innerHTML = '';
+  $('randKindLabel').textContent = '（' + (state.kind === '梗' ? '聊天梗' : '番外') + '）';
+  randMask.classList.add('show');
+}
+
+function renderRandChips() {
+  const all = ['不限', ...KIND_CATS[state.kind]];
+  $('randChips').innerHTML = all.map((c) => {
+    const col = TAG_COLORS[c] || { c: 'var(--ink-deep)' };
+    return `<button class="chip ${randCat === c ? 'active' : ''}" data-cat="${c}" style="--tag-color:${col.c}">${c === '不限' ? '不限类型' : c}</button>`;
+  }).join('');
+}
+
+$('randChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  randCat = btn.dataset.cat === '不限' ? '' : btn.dataset.cat;
+  renderRandChips();
+});
+
+async function drawRandom() {
+  if (!CONFIGURED) {
+    let pool = demoMemes.filter((m) => (m.kind || '梗') === state.kind);
+    if (randCat) pool = pool.filter((m) => String(m.category).split(',').includes(randCat));
+    showRandResult(pool.length ? pool[Math.floor(Math.random() * pool.length)] : null);
+    return;
+  }
+  let countQ = db.from('memes').select('id', { count: 'exact', head: true }).eq('kind', state.kind);
+  if (randCat) countQ = countQ.ilike('category', '%' + randCat + '%');
+  const { count, error } = await countQ;
+  if (error || !count) { showRandResult(null); return; }
+  const offset = Math.floor(Math.random() * count);
+  let dataQ = db.from('memes').select('*').eq('kind', state.kind);
+  if (randCat) dataQ = dataQ.ilike('category', '%' + randCat + '%');
+  const { data } = await dataQ.range(offset, offset);
+  showRandResult(data && data[0]);
+}
+
+function showRandResult(m) {
+  const box = $('randResult');
+  if (!m) {
+    box.innerHTML = `<div class="empty" style="padding:24px"><p>这个类型下还没有内容，换一个类型试试</p></div>`;
+    return;
+  }
+  const cats = String(m.category || '其他').split(',');
+  const tags = cats.map((c) => {
+    const col = TAG_COLORS[c] || TAG_COLORS['其他'];
+    return `<span class="tag ${c === '18＋' ? 'r18' : ''}"
+      style="--tag-color:${col.c};--tag-bg:${col.bg}">${escapeHTML(c)}</span>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="card" style="animation:none">
+      <div class="card-head">
+        ${tags}
+        <span class="card-time">${timeAgo(m.created_at)}</span>
+      </div>
+      <div class="card-content">${escapeHTML(m.content)}</div>
+      <div class="card-foot">
+        <button class="icon-btn" id="randCopyBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="12" height="12" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+          </svg>
+          复制
+        </button>
+      </div>
+    </div>`;
+  $('randCopyBtn').addEventListener('click', async () => {
+    const ok = await copyText(m.content);
+    toast(ok ? '已复制到剪贴板' : '复制失败');
+  });
+}
+
+$('randomBtn').addEventListener('click', openRand);
+$('randClose').addEventListener('click', () => randMask.classList.remove('show'));
+randMask.addEventListener('click', (e) => { if (e.target === randMask) randMask.classList.remove('show'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') randMask.classList.remove('show'); });
+$('randGoBtn').addEventListener('click', drawRandom);
+
 /* ---------- 排序 / 搜索 ---------- */
 document.querySelectorAll('.sort-btn').forEach((b) =>
   b.addEventListener('click', () => {
@@ -815,10 +992,13 @@ function persistDemo() { localStorage.setItem('meme_demo_data', JSON.stringify(d
 if (!demoMemes) {
   const now = Date.now();
   demoMemes = [
-    { id: 'd1', content: '“在吗”\n“怎么了”\n“我刚刚看到一只超可爱的猫，第一个想到要给你看”', category: '可爱', likes: 12, device_id: 'seed', created_at: new Date(now - 3600e3 * 2).toISOString() },
-    { id: 'd2', content: '“你干嘛哈哈哎呦”\n——所有话题终结者的自我修养', category: '搞笑', likes: 30, device_id: 'seed', created_at: new Date(now - 3600e3 * 5).toISOString() },
-    { id: 'd3', content: '“晚安”\n“做个好梦”\n“梦里也别忘了我”', category: '酸涩', likes: 21, device_id: 'seed', created_at: new Date(now - 86400e3).toISOString() },
-    { id: 'd4', content: '“到家了吗”\n“到了”\n“那我把灯关了，省电”\n“等等，我还没洗完澡呢”\n“那你洗完喊我”', category: '温馨', likes: 45, device_id: 'seed', created_at: new Date(now - 86400e3 * 2).toISOString() },
+    { id: 'd1', kind: '梗', content: '“在吗”\n“怎么了”\n“我刚刚看到一只超可爱的猫，第一个想到要给你看”', category: '可爱', likes: 12, device_id: 'seed', created_at: new Date(now - 3600e3 * 2).toISOString() },
+    { id: 'd2', kind: '梗', content: '“你干嘛哈哈哎呦”\n——所有话题终结者的自我修养', category: '搞笑', likes: 30, device_id: 'seed', created_at: new Date(now - 3600e3 * 5).toISOString() },
+    { id: 'd3', kind: '梗', content: '“晚安”\n“做个好梦”\n“梦里也别忘了我”', category: '酸涩', likes: 21, device_id: 'seed', created_at: new Date(now - 86400e3).toISOString() },
+    { id: 'd4', kind: '梗', content: '“到家了吗”\n“到了”\n“那我把灯关了，省电”\n“等等，我还没洗完澡呢”\n“那你洗完喊我”', category: '温馨', likes: 45, device_id: 'seed', created_at: new Date(now - 86400e3 * 2).toISOString() },
+    { id: 'e1', kind: '番外', content: '“如果那天你没有回头，我们现在会在哪里？”\n——平行时空观测报告 第一号', category: '平行时空', likes: 15, device_id: 'seed', created_at: new Date(now - 3600e3 * 7).toISOString() },
+    { id: 'e2', kind: '番外', content: '图书馆顶层的猫其实会说话，它只对自习到闭馆的人讲故事的结尾。', category: '奇幻', likes: 9, device_id: 'seed', created_at: new Date(now - 86400e3 * 3).toISOString() },
+    { id: 'e3', kind: '番外', content: '“最后一块曲奇分了吧。”\n“一半对你来说太多了。”\n“那你就替我吃掉多出来的那部分。”', category: '温馨', likes: 18, device_id: 'seed', created_at: new Date(now - 86400e3 * 4).toISOString() },
   ];
   persistDemo();
 }
@@ -828,6 +1008,7 @@ if (!CONFIGURED) {
   $('configTip').style.display = 'block';
 }
 renderChips();
+renderKindOptions();
 renderTypeOptions();
 loadMemes();
 </script>
